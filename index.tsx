@@ -75,12 +75,19 @@ const App = () => {
     if (!text) return
     setLogs((prev) => {
       const next = prev.length ? [...prev] : [{ kind: "assistant" as const, text: "" }]
-      const last = next[next.length - 1]
-      if (last.kind === "assistant") {
-        next[next.length - 1] = { kind: "assistant", text: `${last.text}${text}` }
-      } else {
-        next.push({ kind: "assistant", text })
+      const parts = text.split("\n")
+
+      for (const [index, part] of parts.entries()) {
+        const last = next[next.length - 1]
+
+        if (index > 0 || last.kind !== "assistant") {
+          next.push({ kind: "assistant", text: part })
+          continue
+        }
+
+        next[next.length - 1] = { kind: "assistant", text: `${last.text}${part}` }
       }
+
       return next.slice(-MAX_LOG_LINES)
     })
   }
