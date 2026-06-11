@@ -24,6 +24,7 @@ const COMMANDS = [
 ]
 const PUSH_COMMAND = { name: "push", label: " Push", command: "git push" }
 const MAX_LOG_LINES = 500
+const TARGET_REPO = process.env.TERMINAL_COMMIT_REPO ?? process.cwd()
 
 const App = () => {
   const [status, setStatus] = createSignal("Ready - click a button or press Enter")
@@ -60,7 +61,7 @@ const App = () => {
   }
 
   const refreshGitStatus = () => {
-    const gitProcess = spawn("git", ["status", "--short"], { stdio: ["ignore", "pipe", "pipe"] })
+    const gitProcess = spawn("git", ["status", "--short"], { cwd: TARGET_REPO, stdio: ["ignore", "pipe", "pipe"] })
     let output = ""
 
     gitProcess.stdout?.on("data", (data: Buffer) => {
@@ -87,7 +88,7 @@ const App = () => {
         if (line[1] !== " ") unstaged++
       }
 
-      const aheadProcess = spawn("git", ["rev-list", "--count", "@{upstream}..HEAD"], { stdio: ["ignore", "pipe", "ignore"] })
+      const aheadProcess = spawn("git", ["rev-list", "--count", "@{upstream}..HEAD"], { cwd: TARGET_REPO, stdio: ["ignore", "pipe", "ignore"] })
       let aheadOutput = ""
 
       aheadProcess.stdout?.on("data", (data: Buffer) => {
@@ -165,6 +166,7 @@ const App = () => {
     buffer = ""
 
     piProcess = spawn("pi", ["--mode", "rpc", "--no-extensions", "--no-session", "--extension", commandConfig.extension], {
+      cwd: TARGET_REPO,
       stdio: ["pipe", "pipe", "pipe"],
     })
 
@@ -227,7 +229,7 @@ const App = () => {
     setStatus("Running git push...")
     setLogs([])
 
-    gitPushProcess = spawn("git", ["push"], { stdio: ["ignore", "pipe", "pipe"] })
+    gitPushProcess = spawn("git", ["push"], { cwd: TARGET_REPO, stdio: ["ignore", "pipe", "pipe"] })
     addLog("[sent] git push")
 
     gitPushProcess.stdout?.on("data", (data: Buffer) => {

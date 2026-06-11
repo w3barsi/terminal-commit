@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export TERMINAL_COMMIT_REPO="${TERMINAL_COMMIT_REPO:-$(pwd)}"
+
+cd "$APP_DIR"
+exec bun --preload @opentui/solid/preload "$APP_DIR/index.tsx"
