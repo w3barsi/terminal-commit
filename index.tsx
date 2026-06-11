@@ -26,12 +26,27 @@ const PUSH_COMMAND = { name: "push", label: " Push", command: "git push" }
 const MAX_LOG_LINES = 500
 const TARGET_REPO = process.env.TERMINAL_COMMIT_REPO ?? process.cwd()
 
+type LogKind = "sent" | "rpc" | "tool" | "stderr" | "exit" | "assistant" | "mouse" | "commit" | "raw"
+type LogLine = { kind: LogKind; text: string }
+
+const LOG_COLORS: Record<LogKind, string> = {
+  sent: "#7AA2F7",
+  rpc: "#8BD5CA",
+  tool: "#EBCB8B",
+  stderr: "#FF6961",
+  exit: "#777777",
+  assistant: "#CCCCCC",
+  mouse: "#B48EAD",
+  commit: "#4CAF50",
+  raw: "#888888",
+}
+
 const App = () => {
   const [status, setStatus] = createSignal("Ready - click a button or press Enter")
   const [hovered, setHovered] = createSignal<string | null>(null)
   const [running, setRunning] = createSignal(false)
   const [runningCommand, setRunningCommand] = createSignal<string | null>(null)
-  const [logs, setLogs] = createSignal<string[]>([])
+  const [logs, setLogs] = createSignal<LogLine[]>([])
   const [gitStatus, setGitStatus] = createSignal({ staged: 0, unstaged: 0, untracked: 0, unpushed: 0 })
 
   const renderer = useRenderer()
@@ -39,16 +54,33 @@ const App = () => {
   let gitPushProcess: ChildProcess | null = null
   let buffer = ""
 
-  const addLog = (line: string | null) => {
+  const getLogKind = (line: string): LogKind => {
+    if (line.startsWith("[sent]")) return "sent"
+    if (line.startsWith("[rpc]")) return "rpc"
+    if (line.startsWith("[tool:")) return "tool"
+    if (line.startsWith("[stderr]") || line.startsWith("[spawn]")) return "stderr"
+    if (line.startsWith("[exit]")) return "exit"
+    if (line.startsWith("[mouse]")) return "mouse"
+    if (line.startsWith("[commit]")) return "commit"
+    if (line.startsWith("[agent]") || line.startsWith("[notify]")) return "rpc"
+    return "raw"
+  }
+
+  const addLog = (line: string | null, kind?: LogKind) => {
     if (!line?.trim()) return
-    setLogs((prev) => [...prev, line].slice(-MAX_LOG_LINES))
+    setLogs((prev) => [...prev, { kind: kind ?? getLogKind(line), text: line }].slice(-MAX_LOG_LINES))
   }
 
   const appendLog = (text: string | null) => {
     if (!text) return
     setLogs((prev) => {
-      const next = prev.length ? [...prev] : [""]
-      next[next.length - 1] = `${next[next.length - 1]}${text}`
+      const next = prev.length ? [...prev] : [{ kind: "assistant" as const, text: "" }]
+      const last = next[next.length - 1]
+      if (last.kind === "assistant") {
+        next[next.length - 1] = { kind: "assistant", text: `${last.text}${text}` }
+      } else {
+        next.push({ kind: "assistant", text })
+      }
       return next.slice(-MAX_LOG_LINES)
     })
   }
@@ -301,11 +333,11 @@ const App = () => {
           trackOptions: { foregroundColor: "#555", backgroundColor: "#202020" },
         }}
       >
-        <text fg="#666">
-          {logs().length === 0
-            ? "Events will appear here..."
-            : logs().join("\n")}
-        </text>
+        {logs().length === 0 ? (
+          <text fg="#666">Events will appear here...</text>
+        ) : (
+          logs().map((line) => <text fg={LOG_COLORS[line.kind]}>{line.text}</text>)
+        )}
       </scrollbox>
 
       {/* Footer hint */}
