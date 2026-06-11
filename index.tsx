@@ -18,18 +18,20 @@ const COMMANDS = [
   { name: "gc", label: "Commit Only", extension: "/home/barsi/.pi/agent/extensions/gc.ts" },
   { name: "gacf", label: "Group Add and Commit", extension: "/home/barsi/.pi/agent/extensions/gacf.ts" },
 ]
+const PUSH_COMMAND = { name: "push", label: "Push", command: "git push" }
 const MAX_LOG_LINES = 500
 
 const App = () => {
   const [status, setStatus] = createSignal("Ready - click a button or press Enter")
   const [hovered, setHovered] = createSignal<string | null>(null)
   const [running, setRunning] = createSignal(false)
-  const [runningCommand, setRunningCommand] = createSignal<(typeof COMMANDS)[number] | null>(null)
+  const [runningCommand, setRunningCommand] = createSignal<string | null>(null)
   const [logs, setLogs] = createSignal<string[]>([])
-  const [gitStatus, setGitStatus] = createSignal({ staged: 0, unstaged: 0, untracked: 0 })
+  const [gitStatus, setGitStatus] = createSignal({ staged: 0, unstaged: 0, untracked: 0, unpushed: 0 })
 
   const renderer = useRenderer()
   let piProcess: ChildProcess | null = null
+  let gitPushProcess: ChildProcess | null = null
   let buffer = ""
 
   const addLog = (line: string | null) => {
@@ -63,7 +65,7 @@ const App = () => {
 
     gitProcess.on("exit", (code) => {
       if (code !== 0) {
-        setGitStatus({ staged: 0, unstaged: 0, untracked: 0 })
+        setGitStatus({ staged: 0, unstaged: 0, untracked: 0, unpushed: 0 })
         return
       }
 
@@ -81,7 +83,17 @@ const App = () => {
         if (line[1] !== " ") unstaged++
       }
 
-      setGitStatus({ staged, unstaged, untracked })
+      const aheadProcess = spawn("git", ["rev-list", "--count", "@{upstream}..HEAD"], { stdio: ["ignore", "pipe", "ignore"] })
+      let aheadOutput = ""
+
+      aheadProcess.stdout?.on("data", (data: Buffer) => {
+        aheadOutput += data.toString()
+      })
+
+      aheadProcess.on("exit", (aheadCode) => {
+        const unpushed = aheadCode === 0 ? Number.parseInt(aheadOutput.trim(), 10) || 0 : 0
+        setGitStatus({ staged, unstaged, untracked, unpushed })
+      })
     })
   }
 
@@ -143,7 +155,7 @@ const App = () => {
     if (running() && !restart) return
     if (restart) cleanup()
     setRunning(true)
-    setRunningCommand(commandConfig)
+    setRunningCommand(commandConfig.name)
     setStatus("Spawning pi in RPC mode...")
     setLogs([])
     buffer = ""
@@ -204,11 +216,47 @@ const App = () => {
     }, 500)
   }
 
+  const runGitPush = () => {
+    if (running()) return
+    setRunning(true)
+    setRunningCommand(PUSH_COMMAND.name)
+    setStatus("Running git push...")
+    setLogs([])
+
+    gitPushProcess = spawn("git", ["push"], { stdio: ["ignore", "pipe", "pipe"] })
+    addLog("[sent] git push")
+
+    gitPushProcess.stdout?.on("data", (data: Buffer) => {
+      for (const line of data.toString().split("\n")) addLog(line)
+    })
+
+    gitPushProcess.stderr?.on("data", (data: Buffer) => {
+      for (const line of data.toString().split("\n")) addLog(line)
+    })
+
+    gitPushProcess.on("error", (err) => {
+      setStatus(`Failed to run git push: ${err.message}`)
+      addLog(`[spawn] error: ${err.message}`)
+      cleanup()
+    })
+
+    gitPushProcess.on("exit", (code) => {
+      setStatus(code === 0 ? "Done - git push finished" : `git push failed with code ${code ?? "?"}`)
+      addLog(`[exit] git push code ${code ?? "?"}`)
+      refreshGitStatus()
+      cleanup()
+    })
+  }
+
   const cleanup = () => {
     if (piProcess) {
       piProcess.stdin?.end()
       piProcess.kill()
       piProcess = null
+    }
+    if (gitPushProcess) {
+      gitPushProcess.kill()
+      gitPushProcess = null
     }
     setRunning(false)
     setRunningCommand(null)
@@ -256,34 +304,79 @@ const App = () => {
 
       {/* Footer hint */}
 
-      <box flexDirection="row" gap={0} width="100%" height={5}>
-        {COMMANDS.map((commandConfig) => {
-          const isActive = runningCommand()?.name === commandConfig.name
-          const isDisabled = running() && !isActive
+      <box flexDirection="column" gap={0} width="100%" height={10}>
+        <box flexDirection="row" gap={0} width="100%" height={5}>
+          <box
+            flexGrow={7}
+            border
+            borderStyle="rounded"
+            padding={1}
+            alignItems="center"
+            justifyContent="center"
+            backgroundColor={hovered() === COMMANDS[0].name ? "#00000005" : "#2D2D2D00"}
+            onMouseDown={() => {
+              if (running() && runningCommand() !== COMMANDS[0].name) return
+              addLog(`[mouse] /${COMMANDS[0].name} button clicked`)
+              runExtension(COMMANDS[0])
+            }}
+            onMouseOver={() => setHovered(COMMANDS[0].name)}
+            onMouseOut={() => setHovered(null)}
+          >
+            <text fg={runningCommand() === COMMANDS[0].name ? "#888" : running() ? "#555" : "#4CAF50"} attributes={TextAttributes.BOLD}>
+              {runningCommand() === COMMANDS[0].name ? `Running /${COMMANDS[0].name}...` : COMMANDS[0].label}
+            </text>
+          </box>
+          <box
+            flexGrow={3}
+            border
+            borderStyle="rounded"
+            padding={1}
+            alignItems="center"
+            justifyContent="center"
+            backgroundColor={hovered() === PUSH_COMMAND.name ? "#00000005" : "#2D2D2D00"}
+            onMouseDown={() => {
+              if (running() && runningCommand() !== PUSH_COMMAND.name) return
+              addLog("[mouse] git push button clicked")
+              runGitPush()
+            }}
+            onMouseOver={() => setHovered(PUSH_COMMAND.name)}
+            onMouseOut={() => setHovered(null)}
+          >
+            <text fg={runningCommand() === PUSH_COMMAND.name ? "#888" : running() ? "#555" : "#4CAF50"} attributes={TextAttributes.BOLD}>
+              {runningCommand() === PUSH_COMMAND.name ? "Running git push..." : PUSH_COMMAND.label}
+            </text>
+          </box>
+        </box>
 
-          return (
-            <box
-              flexGrow={1}
-              border
-              borderStyle="rounded"
-              padding={1}
-              alignItems="center"
-              justifyContent="center"
-              backgroundColor={hovered() === commandConfig.name ? "#00000005" : "#2D2D2D00"}
-              onMouseDown={() => {
-                if (isDisabled) return
-                addLog(`[mouse] /${commandConfig.name} button clicked`)
-                runExtension(commandConfig)
-              }}
-              onMouseOver={() => setHovered(commandConfig.name)}
-              onMouseOut={() => setHovered(null)}
-            >
-              <text fg={isDisabled ? "#555" : isActive ? "#888" : "#4CAF50"} attributes={TextAttributes.BOLD}>
-                {isActive ? `Running /${commandConfig.name}...` : commandConfig.label}
-              </text>
-            </box>
-          )
-        })}
+        <box flexDirection="row" gap={0} width="100%" height={5}>
+          {[COMMANDS[1], COMMANDS[2]].map((commandConfig) => {
+            const isActive = runningCommand() === commandConfig.name
+            const isDisabled = running() && !isActive
+
+            return (
+              <box
+                flexGrow={1}
+                border
+                borderStyle="rounded"
+                padding={1}
+                alignItems="center"
+                justifyContent="center"
+                backgroundColor={hovered() === commandConfig.name ? "#00000005" : "#2D2D2D00"}
+                onMouseDown={() => {
+                  if (isDisabled) return
+                  addLog(`[mouse] /${commandConfig.name} button clicked`)
+                  runExtension(commandConfig)
+                }}
+                onMouseOver={() => setHovered(commandConfig.name)}
+                onMouseOut={() => setHovered(null)}
+              >
+                <text fg={isDisabled ? "#555" : isActive ? "#888" : "#4CAF50"} attributes={TextAttributes.BOLD}>
+                  {isActive ? `Running /${commandConfig.name}...` : commandConfig.label}
+                </text>
+              </box>
+            )
+          })}
+        </box>
       </box>
 
       {/* Status */}
@@ -292,6 +385,7 @@ const App = () => {
           <text fg="#8BD5CA">staged {gitStatus().staged}</text>
           <text fg="#ff6961">changed {gitStatus().unstaged}</text>
           <text fg="#B48EAD">untracked {gitStatus().untracked}</text>
+          <text fg="#EBCB8B">unpushed {gitStatus().unpushed}</text>
         </box>
         {/* <text fg="#8BD5CA"> */}
         {/*   Git S:{gitStatus().staged} C:{gitStatus().unstaged} U:{gitStatus().untracked} */}
