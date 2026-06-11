@@ -232,8 +232,8 @@ const App = () => {
 
   return (
     <box flexDirection="column" padding={1} gap={1} width="100%" height="100%">
-      {/* Action buttons, ordered from broadest to most specific commit flow. */}
-
+      {/* Git Status */}
+      <text fg="#AAAAAA">{status()}</text>
       {/* Event log */}
       <scrollbox
         flexGrow={1}
@@ -269,7 +269,7 @@ const App = () => {
               padding={2}
               alignItems="center"
               justifyContent="center"
-              backgroundColor={hovered() === commandConfig.name ? "#3D3D3D" : "#2D2D2D"}
+              backgroundColor={hovered() === commandConfig.name ? "#00000005" : "#2D2D2D00"}
               onMouseDown={() => {
                 if (isDisabled) return
                 addLog(`[mouse] /${commandConfig.name} button clicked`)
@@ -288,8 +288,6 @@ const App = () => {
 
       {/* Status */}
       <box flexDirection="row" justifyContent="space-between" width="100%">
-        <text fg="#AAAAAA">{status()}</text>
-        {/* Git Status */}
         <box flexDirection="row" gap={1}>
           <text fg="#8BD5CA">staged {gitStatus().staged}</text>
           <text fg="#ff6961">changed {gitStatus().unstaged}</text>
