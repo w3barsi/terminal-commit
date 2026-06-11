@@ -231,7 +231,7 @@ const App = () => {
   })
 
   return (
-    <box flexDirection="column" padding={1} gap={1} width="100%" height="100%">
+    <box flexDirection="column" padding={1} gap={0} width="100%" height="100%">
       {/* Git Status */}
       <text fg="#AAAAAA">{status()}</text>
       {/* Event log */}
@@ -256,7 +256,7 @@ const App = () => {
 
       {/* Footer hint */}
 
-      <box flexDirection="row" gap={1} width="100%" height={7}>
+      <box flexDirection="row" gap={0} width="100%" height={5}>
         {COMMANDS.map((commandConfig) => {
           const isActive = runningCommand()?.name === commandConfig.name
           const isDisabled = running() && !isActive
@@ -266,7 +266,7 @@ const App = () => {
               flexGrow={1}
               border
               borderStyle="rounded"
-              padding={2}
+              padding={1}
               alignItems="center"
               justifyContent="center"
               backgroundColor={hovered() === commandConfig.name ? "#00000005" : "#2D2D2D00"}
