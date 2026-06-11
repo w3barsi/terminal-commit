@@ -336,7 +336,10 @@ const App = () => {
         {logs().length === 0 ? (
           <text fg="#666">Events will appear here...</text>
         ) : (
-          logs().map((line) => <text fg={LOG_COLORS[line.kind]}>{line.text}</text>)
+          logs().map((line) => {
+            const kind = line.text.trimStart().startsWith("[commit]") ? "commit" : line.kind
+            return <text fg={LOG_COLORS[kind]}>{line.text}</text>
+          })
         )}
       </scrollbox>
 
