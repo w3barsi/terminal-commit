@@ -1,52 +1,39 @@
 # Terminal Commit
 
-OpenTUI + Solid terminal launcher for Pi git commit extensions.
+Terminal Commit is a small OpenTUI app for lazily creating git commits from the terminal.
 
-## What It Does
+The intended workflow is to split your terminal into two panes with `tmux`: keep `lazygit` open in one pane for reviewing changes, staging files, inspecting diffs, and watching repository state; keep Terminal Commit open in the other pane for triggering commit automation without leaving the terminal.
 
-This app shows a terminal UI with three buttons:
+The app is intentionally narrow. It gives you a few commit-focused actions as large terminal buttons and streams the underlying Pi agent output into a scrollable log area.
 
-- `Add and Commit` runs Pi extension `/gac`
-- `Commit Only` runs Pi extension `/gc`
-- `Group Add and Commit` runs Pi extension `/gacf`
+## Workflow
 
-Each button starts `pi` in RPC mode, loads only the matching extension, sends the slash command, and streams Pi's RPC output into the log panel.
+Use `lazygit` to see and control what changed. Use Terminal Commit to ask Pi to do the repetitive commit work.
 
-The footer also shows live Git status for the current project:
+Typical layout:
 
 ```text
-Git S:<staged> C:<changed> U:<untracked>
+┌─────────────────────────────┬─────────────────────────────┐
+│ lazygit                     │ terminal-commit             │
+│ review diffs, staging, log  │ commit buttons + agent logs │
+└─────────────────────────────┴─────────────────────────────┘
 ```
 
-## Run
+## Actions
+
+- `Add and Commit` runs `/gac`: stage all changes and create a commit.
+- `Commit Only` runs `/gc`: commit what is already staged.
+- `Group Add and Commit` runs `/gacf`: split unrelated changes into coherent commits.
+- `Push` runs `git push` directly, without Pi or AI.
+
+The status bar tracks the active repository with live counts for staged, changed, untracked, and unpushed commits.
+
+## Running In A Repo
+
+Run the wrapper from the repository you want to commit from:
 
 ```bash
-bun install
-bun index.tsx
+/home/barsi/dev/terminal-commit/terminal-commit
 ```
 
-For restart-on-save development:
-
-```bash
-bun run dev
-```
-
-## Controls
-
-- Click a button to run that command.
-- `Enter` runs `/gac`.
-- `Esc` exits.
-
-## Requirements
-
-- Bun
-- `pi` available in `PATH`
-- Git project in the current working directory
-- Pi extensions at:
-  - `/home/barsi/.pi/agent/extensions/gac.ts`
-  - `/home/barsi/.pi/agent/extensions/gc.ts`
-  - `/home/barsi/.pi/agent/extensions/gacf.ts`
-
-## Notes
-
-The app runs Pi with `--no-extensions --extension <path>` so each button dispatches deterministically to the intended extension command instead of any auto-loaded command with the same name.
+The wrapper keeps the app runtime tied to this project while targeting the directory you launched it from for all `git` and `pi` work.
