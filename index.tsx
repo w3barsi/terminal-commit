@@ -18,7 +18,7 @@ const COMMANDS = [
   { name: "gc", label: "Commit Only", extension: "/home/barsi/.pi/agent/extensions/gc.ts" },
   { name: "gacf", label: "Group Add and Commit", extension: "/home/barsi/.pi/agent/extensions/gacf.ts" },
 ]
-const PUSH_COMMAND = { name: "push", label: "Push", command: "git push" }
+const PUSH_COMMAND = { name: "push", label: " Push", command: "git push" }
 const MAX_LOG_LINES = 500
 
 const App = () => {
@@ -307,7 +307,7 @@ const App = () => {
       <box flexDirection="column" gap={0} width="100%" height={10}>
         <box flexDirection="row" gap={0} width="100%" height={5}>
           <box
-            flexGrow={7}
+            flexGrow={9}
             border
             borderStyle="rounded"
             padding={1}
@@ -327,7 +327,7 @@ const App = () => {
             </text>
           </box>
           <box
-            flexGrow={3}
+            flexGrow={1}
             border
             borderStyle="rounded"
             padding={1}
