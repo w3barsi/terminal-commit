@@ -63,10 +63,19 @@ const App = () => {
     if (event.type === "tool_execution_start") return `[tool:start] ${event.toolName ?? event.name ?? "tool"}`
     if (event.type === "tool_execution_end") return `[tool:end] ${event.toolName ?? event.name ?? "tool"}`
 
-    const textDelta = event.assistantMessageEvent?.delta ?? event.delta
-    if (event.type === "message_update" && typeof textDelta === "string") return textDelta
+    const text = firstString(
+      event.assistantMessageEvent?.delta,
+      event.assistantMessageEvent?.text,
+      event.message?.content,
+      event.message?.text,
+      event.content,
+      event.text,
+      event.delta,
+      event.result?.message,
+    )
+    if (text) return text
 
-    return JSON.stringify(event)
+    return null
   }
 
   const runExtension = () => {
@@ -170,13 +179,24 @@ const App = () => {
       <text fg="#AAAAAA">{status()}</text>
 
       {/* Event log */}
-      <box flexGrow={1} border borderStyle="single" padding={1}>
+      <scrollbox
+        flexGrow={1}
+        border
+        borderStyle="single"
+        padding={1}
+        stickyScroll
+        stickyStart="bottom"
+        verticalScrollbarOptions={{
+          showArrows: true,
+          trackOptions: { foregroundColor: "#555", backgroundColor: "#202020" },
+        }}
+      >
         <text fg="#666">
           {logs().length === 0
             ? "Events will appear here..."
-            : logs().join("\n")}
+            : logs().join(" ")}
         </text>
-      </box>
+      </scrollbox>
 
       {/* Footer hint */}
       <text fg="#555" attributes={TextAttributes.DIM}>
