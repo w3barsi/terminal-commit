@@ -1,3 +1,7 @@
+/** @jsxImportSource @opentui/solid */
+
+import "@opentui/solid/preload"
+
 /**
  * Prototype: OpenTUI + SolidJS launcher for a pi extension.
  *
@@ -160,7 +164,7 @@ const App = () => {
     setLogs([])
     buffer = ""
 
-    piProcess = spawn("pi", ["--mode", "rpc", "--no-extensions", "--extension", commandConfig.extension], {
+    piProcess = spawn("pi", ["--mode", "rpc", "--no-extensions", "--no-session", "--extension", commandConfig.extension], {
       stdio: ["pipe", "pipe", "pipe"],
     })
 
