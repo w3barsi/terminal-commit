@@ -343,7 +343,7 @@ const App = () => {
             onMouseOut={() => setHovered(null)}
           >
             <text fg={runningCommand() === PUSH_COMMAND.name ? "#888" : running() ? "#555" : "#4CAF50"} attributes={TextAttributes.BOLD}>
-              {runningCommand() === PUSH_COMMAND.name ? "Running git push..." : PUSH_COMMAND.label}
+              {PUSH_COMMAND.label}
             </text>
           </box>
         </box>
