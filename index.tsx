@@ -124,6 +124,7 @@ const App = () => {
           const formatted = formatEvent(event)
           if (formatted?.kind === "append") appendLog(formatted.text)
           if (formatted?.kind === "line") addLog(formatted.text)
+          if (event.type === "agent_end") cleanup()
         } catch {
           // raw non-JSON line
           addLog(line)
