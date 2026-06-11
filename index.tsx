@@ -26,13 +26,21 @@ const App = () => {
   let piProcess: ChildProcess | null = null
   let buffer = ""
 
-  const addLog = (line: string) => {
+  const addLog = (line: string | null) => {
+    if (!line?.trim()) return
     setLogs((prev) => [...prev, line].slice(-MAX_LOG_LINES))
   }
 
-  const formatEvent = (event: Record<string, any>) => {
+  const firstString = (...values: unknown[]) => {
+    for (const value of values) {
+      if (typeof value === "string" && value.trim()) return value.trim()
+    }
+    return null
+  }
+
+  const formatEvent = (event: Record<string, any>): string | null => {
     if (event.type === "extension_ui_request" && event.method === "notify") {
-      const message = event.message ?? event.params?.message ?? "notification"
+      const message = firstString(event.message, event.params?.message, event.params?.text) ?? "notification"
       setStatus(`Extension: ${message}`)
       return `[notify] ${message}`
     }
