@@ -153,9 +153,10 @@ const App = () => {
       const message = output.trim()
       if (code !== 0 || !message) return
 
-      addLog("[commit] Last commit:", "commit")
       for (const line of message.split("\n")) {
+        addLog("\n=======================================================")
         addLog(`[commit] ${line}`, "commit")
+        addLog("=======================================================")
       }
     })
   }
