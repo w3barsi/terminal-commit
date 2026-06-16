@@ -141,6 +141,25 @@ const App = () => {
     })
   }
 
+  const printLastCommitMessage = () => {
+    const logProcess = spawn("git", ["log", "-1", "--pretty=%B"], { cwd: TARGET_REPO, stdio: ["ignore", "pipe", "ignore"] })
+    let output = ""
+
+    logProcess.stdout?.on("data", (data: Buffer) => {
+      output += data.toString()
+    })
+
+    logProcess.on("exit", (code) => {
+      const message = output.trim()
+      if (code !== 0 || !message) return
+
+      addLog("[commit] Last commit:", "commit")
+      for (const line of message.split("\n")) {
+        addLog(`[commit] ${line}`, "commit")
+      }
+    })
+  }
+
   const formatEvent = (event: Record<string, any>, commandConfig: (typeof COMMANDS)[number]): { kind: "line" | "append"; text: string } | null => {
     if (event.type === "extension_ui_request" && event.method === "notify") {
       const message = firstString(event.message, event.params?.message, event.params?.text) ?? "notification"
@@ -224,6 +243,7 @@ const App = () => {
           if (event.type === "agent_end") {
             cleanup()
             refreshGitStatus()
+            printLastCommitMessage()
           }
         } catch {
           // raw non-JSON line
