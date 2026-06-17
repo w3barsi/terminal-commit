@@ -224,7 +224,16 @@ const App = () => {
     setLogs([])
     buffer = ""
 
-    piProcess = spawn("pi", ["--mode", "rpc", "--no-extensions", "--no-session", "--extension", commandConfig.extension], {
+    piProcess = spawn("pi", [
+      "--mode",
+      "rpc",
+      "--no-extensions",
+      "--no-session",
+      "--model",
+      "opencode-go/deepseek-v4-flash",
+      "--extension",
+      commandConfig.extension,
+    ], {
       cwd: TARGET_REPO,
       stdio: ["pipe", "pipe", "pipe"],
     })
