@@ -230,7 +230,7 @@ const App = () => {
       "--no-extensions",
       "--no-session",
       "--model",
-      "opencode-go/deepseek-v4-flash",
+      "openai-codex/gpt-5.4-mini",
       "--extension",
       commandConfig.extension,
     ], {
