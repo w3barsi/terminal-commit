@@ -28,6 +28,8 @@ Typical layout:
 
 The status bar tracks the active repository with live counts for staged, changed, untracked, and unpushed commits.
 
+When an AI action starts, Terminal Commit launches Pi and collects the repository status, staged and unstaged diffs, and recent commit history in parallel. The first agent prompt includes that bounded snapshot, avoiding an initial tool round trip just to discover repository state. Pi can still refresh sections that were truncated or became stale after staging.
+
 ## Running In A Repo
 
 Run the wrapper from the repository you want to commit from:

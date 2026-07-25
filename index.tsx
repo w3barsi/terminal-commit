@@ -16,6 +16,7 @@ import { TextAttributes } from "@opentui/core"
 import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { createSignal, onCleanup, onMount } from "solid-js"
 import { spawn, type ChildProcess } from "child_process"
+import { collectGitContext, formatGitContext } from "./git-context"
 
 const COMMANDS = [
   { name: "gac", label: "Add and Commit", extension: "/home/barsi/.pi/agent/extensions/gac.ts" },
@@ -224,7 +225,7 @@ const App = () => {
     setLogs([])
     buffer = ""
 
-    piProcess = spawn("pi", [
+    const child = spawn("pi", [
       "--mode",
       "rpc",
       "--no-extensions",
@@ -237,8 +238,41 @@ const App = () => {
       cwd: TARGET_REPO,
       stdio: ["pipe", "pipe", "pipe"],
     })
+    piProcess = child
+    let commandReady = false
+    let repositoryContext: string | null = null
+    let promptSent = false
 
-    piProcess.stdout?.on("data", (data: Buffer) => {
+    const sendPromptWhenReady = () => {
+      if (!commandReady || !repositoryContext || promptSent || piProcess !== child || !child.stdin?.writable) return
+
+      promptSent = true
+      child.stdin.write(JSON.stringify({
+        id: commandConfig.name,
+        type: "prompt",
+        message: `/${commandConfig.name} ${repositoryContext}`,
+      }) + "\n")
+      setStatus(`Context ready - running /${commandConfig.name}...`)
+      addLog(`[sent] /${commandConfig.name} command with repository context`)
+    }
+
+    void collectGitContext(TARGET_REPO)
+      .then((sections) => formatGitContext(sections))
+      .catch((error: unknown) => formatGitContext([{
+        title: "Repository context",
+        command: "git context collection",
+        output: "",
+        error: error instanceof Error ? error.message : String(error),
+        truncated: false,
+      }]))
+      .then((context) => {
+        if (piProcess !== child) return
+        repositoryContext = context
+        addLog("[context] repository snapshot ready")
+        sendPromptWhenReady()
+      })
+
+    child.stdout?.on("data", (data: Buffer) => {
       buffer += data.toString()
       const lines = buffer.split("\n")
       buffer = lines.pop() ?? ""
@@ -250,6 +284,16 @@ const App = () => {
           const formatted = formatEvent(event, commandConfig)
           if (formatted?.kind === "append") appendLog(formatted.text)
           if (formatted?.kind === "line") addLog(formatted.text)
+          if (event.type === "response" && event.command === "get_commands") {
+            const commands = event.success && Array.isArray(event.data?.commands) ? event.data.commands : []
+            commandReady = commands.some((command: Record<string, any>) => command?.name === commandConfig.name)
+            if (commandReady) {
+              sendPromptWhenReady()
+            } else {
+              setStatus(`Error: /${commandConfig.name} was not registered`)
+              cleanup()
+            }
+          }
           if (event.type === "agent_end") {
             cleanup()
             refreshGitStatus()
@@ -262,7 +306,7 @@ const App = () => {
       }
     })
 
-    piProcess.stderr?.on("data", (data: Buffer) => {
+    child.stderr?.on("data", (data: Buffer) => {
       const text = data.toString().trim()
       if (text) {
         setStatus(`Error: ${text}`)
@@ -270,25 +314,18 @@ const App = () => {
       }
     })
 
-    piProcess.on("error", (err) => {
+    child.on("error", (err) => {
       setStatus(`Failed to spawn pi: ${err.message}`)
       addLog(`[spawn] error: ${err.message}`)
       cleanup()
     })
 
-    piProcess.on("exit", (code) => {
+    child.on("exit", (code) => {
       addLog(`[exit] code ${code ?? "?"}`)
       cleanup()
     })
 
-    // Send the slash command after a short delay to let pi initialize.
-    setTimeout(() => {
-      if (piProcess && piProcess.stdin?.writable) {
-        piProcess.stdin.write(JSON.stringify({ id: "commands", type: "get_commands" }) + "\n")
-        piProcess.stdin.write(JSON.stringify({ id: commandConfig.name, type: "prompt", message: `/${commandConfig.name}` }) + "\n")
-        addLog(`[sent] /${commandConfig.name} command`)
-      }
-    }, 500)
+    child.stdin?.write(JSON.stringify({ id: "commands", type: "get_commands" }) + "\n")
   }
 
   const runGitPush = () => {

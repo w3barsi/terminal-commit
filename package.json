@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun index.tsx",
-    "dev": "bun --watch index.tsx"
+    "dev": "bun --watch index.tsx",
+    "test": "bun test"
   },
   "bin": {
     "terminal-commit": "./terminal-commit"
