@@ -28,7 +28,9 @@ Typical layout:
 
 The status bar tracks the active repository with live counts for staged, changed, untracked, and unpushed commits.
 
-When an AI action starts, Terminal Commit launches Pi and collects the repository status, staged and unstaged diffs, and recent commit history in parallel. The first agent prompt includes that bounded snapshot, avoiding an initial tool round trip just to discover repository state. Pi can still refresh sections that were truncated or became stale after staging.
+`Add and Commit` is host-controlled: Terminal Commit runs `git add -A`, collects the complete staged diff and recent commit subjects, and asks Pi only for a commit message with all tools disabled. It validates the message and confirms the staged tree has not changed before running `git commit` itself. Oversized diffs abort rather than producing a message from incomplete context.
+
+The other AI actions launch Pi while collecting a bounded repository snapshot in parallel. Their first agent prompt includes that snapshot, avoiding an initial tool round trip just to discover repository state.
 
 ## Running In A Repo
 

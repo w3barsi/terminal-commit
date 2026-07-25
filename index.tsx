@@ -17,6 +17,7 @@ import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { createSignal, onCleanup, onMount } from "solid-js"
 import { spawn, type ChildProcess } from "child_process"
 import { collectGitContext, formatGitContext } from "./git-context"
+import { commitPreparedGac, prepareGac, validateCommitMessage } from "./gac"
 
 const COMMANDS = [
   { name: "gac", label: "Add and Commit", extension: "/home/barsi/.pi/agent/extensions/gac.ts" },
@@ -53,7 +54,9 @@ const App = () => {
   const renderer = useRenderer()
   let piProcess: ChildProcess | null = null
   let gitPushProcess: ChildProcess | null = null
+  let gacAbortController: AbortController | null = null
   let buffer = ""
+  let operationVersion = 0
 
   const getLogKind = (line: string): LogKind => {
     if (line.startsWith("[sent]")) return "sent"
@@ -216,7 +219,159 @@ const App = () => {
     return null
   }
 
+  const getAssistantText = (message: Record<string, any> | undefined) => {
+    if (message?.role !== "assistant") return null
+    if (typeof message.content === "string") return message.content
+    if (!Array.isArray(message.content)) return null
+
+    const text = message.content
+      .filter((part: Record<string, any>) => part?.type === "text" && typeof part.text === "string")
+      .map((part: Record<string, any>) => part.text)
+      .join("")
+    return text || null
+  }
+
+  const runGac = async () => {
+    if (running()) return
+    const operation = ++operationVersion
+    const abortController = new AbortController()
+    gacAbortController = abortController
+    setRunning(true)
+    setRunningCommand("gac")
+    setStatus("Staging changes and collecting commit context...")
+    setLogs([])
+    buffer = ""
+    addLog("[git] git add -A")
+
+    try {
+      const prepared = await prepareGac(TARGET_REPO, abortController.signal)
+      if (operationVersion !== operation) return
+
+      setStatus("Asking Pi for a commit message...")
+      addLog("[context] staged snapshot ready")
+      const child = spawn("pi", [
+        "--mode",
+        "rpc",
+        "--no-extensions",
+        "--no-session",
+        "--no-tools",
+        "--model",
+        "openai-codex/gpt-5.4-mini",
+      ], {
+        cwd: TARGET_REPO,
+        stdio: ["pipe", "pipe", "pipe"],
+      })
+      piProcess = child
+      let assistantResponse = ""
+      let assistantStopReason: string | null = null
+      let finishing = false
+      let piTimeout: ReturnType<typeof setTimeout> | null = null
+
+      const fail = (error: unknown) => {
+        if (operationVersion !== operation) return
+        if (piTimeout) clearTimeout(piTimeout)
+        piTimeout = null
+        const message = error instanceof Error ? error.message : String(error)
+        setStatus(`GAC failed: ${message}`)
+        addLog(`[error] ${message}`, "stderr")
+        cleanup()
+        refreshGitStatus()
+      }
+
+      piTimeout = setTimeout(() => {
+        fail("Pi timed out while generating the commit message")
+      }, 120_000)
+
+      const finish = async () => {
+        if (finishing || operationVersion !== operation) return
+        finishing = true
+        if (piTimeout) clearTimeout(piTimeout)
+        piTimeout = null
+        child.stdin?.end()
+        child.kill()
+        if (piProcess === child) piProcess = null
+
+        try {
+          if (assistantStopReason !== "stop") {
+            throw new Error(`Pi did not complete the commit message successfully (stop reason: ${assistantStopReason ?? "missing"})`)
+          }
+          const message = validateCommitMessage(assistantResponse)
+          setStatus("Verifying staged changes and committing...")
+          addLog(`[commit] ${message}`, "commit")
+          const result = await commitPreparedGac(TARGET_REPO, prepared, message, abortController.signal)
+          if (operationVersion !== operation) return
+          for (const line of result.stdout.split("\n")) addLog(line)
+          for (const line of result.stderr.split("\n")) addLog(line)
+          setStatus("Done - GAC committed staged changes")
+          refreshGitStatus()
+          printLastCommitMessage()
+          setRunning(false)
+          setRunningCommand(null)
+          if (gacAbortController === abortController) gacAbortController = null
+        } catch (error) {
+          fail(error)
+        }
+      }
+
+      child.stdout?.on("data", (data: Buffer) => {
+        buffer += data.toString()
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const event = JSON.parse(line)
+            if (event.type === "response" && event.command === "prompt") {
+              if (event.success) addLog("[rpc] prompt accepted")
+              else fail(event.error ?? "Pi rejected the prompt")
+            }
+            if (event.type === "agent_start") addLog("[agent] generating commit message")
+            if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
+              appendLog(event.assistantMessageEvent.delta)
+            }
+            if (event.type === "message_end") {
+              const text = getAssistantText(event.message)
+              if (text) {
+                assistantResponse = text
+                assistantStopReason = typeof event.message?.stopReason === "string" ? event.message.stopReason : null
+              }
+            }
+            if (event.type === "agent_settled") void finish()
+          } catch {
+            addLog(line)
+          }
+        }
+      })
+
+      child.stderr?.on("data", (data: Buffer) => {
+        const text = data.toString().trim()
+        if (text) addLog(`[stderr] ${text}`)
+      })
+      child.on("error", fail)
+      child.on("exit", (code) => {
+        if (!finishing && operationVersion === operation) fail(`Pi exited before returning a message (code ${code ?? "unknown"})`)
+      })
+
+      child.stdin?.write(JSON.stringify({ id: "gac-message", type: "prompt", message: prepared.prompt }) + "\n")
+      addLog("[sent] staged context sent to Pi with tools disabled")
+    } catch (error) {
+      if (operationVersion !== operation) return
+      const message = error instanceof Error ? error.message : String(error)
+      setStatus(`GAC failed: ${message}`)
+      addLog(`[error] ${message}`, "stderr")
+      setRunning(false)
+      setRunningCommand(null)
+      if (gacAbortController === abortController) gacAbortController = null
+      refreshGitStatus()
+    }
+  }
+
   const runExtension = (commandConfig = COMMANDS[0], restart = false) => {
+    if (commandConfig.name === "gac") {
+      void runGac()
+      return
+    }
     if (running() && !restart) return
     if (restart) cleanup()
     setRunning(true)
@@ -361,6 +516,9 @@ const App = () => {
   }
 
   const cleanup = () => {
+    operationVersion++
+    gacAbortController?.abort()
+    gacAbortController = null
     if (piProcess) {
       piProcess.stdin?.end()
       piProcess.kill()
