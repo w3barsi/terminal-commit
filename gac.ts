@@ -12,7 +12,7 @@ type GitResult = {
   truncated: boolean
 }
 
-export type PreparedGac = {
+export type PreparedCommit = {
   tree: string
   head: string
   ref: string
@@ -76,8 +76,8 @@ const runGit = (
 
 const promptSection = (title: string, output: string) => `## ${title}\n${output || "(none)"}`
 
-export const prepareGac = async (cwd: string, signal?: AbortSignal): Promise<PreparedGac> => {
-  await runGit(cwd, ["add", "-A"], { signal })
+const prepareCommit = async (cwd: string, stageAll: boolean, signal?: AbortSignal): Promise<PreparedCommit> => {
+  if (stageAll) await runGit(cwd, ["add", "-A"], { signal })
   const [initialTree, initialHead, initialRef] = await Promise.all([
     runGit(cwd, ["write-tree"], { signal }),
     runGit(cwd, ["rev-parse", "--verify", "HEAD"], { allowFailure: true, signal }),
@@ -96,9 +96,9 @@ export const prepareGac = async (cwd: string, signal?: AbortSignal): Promise<Pre
     runGit(cwd, ["symbolic-ref", "-q", "HEAD"], { allowFailure: true, signal }),
   ])
 
-  if (!names.stdout) throw new Error("Nothing to commit after git add -A")
+  if (!names.stdout) throw new Error(stageAll ? "Nothing to commit after git add -A" : "Nothing staged to commit")
   if (initialTree.stdout !== finalTree.stdout || initialHead.stdout !== finalHead.stdout || initialRef.stdout !== finalRef.stdout) {
-    throw new Error("Repository state changed while commit context was collected; run GAC again")
+    throw new Error("Repository state changed while commit context was collected; run the command again")
   }
   if (diff.truncated) {
     throw new Error(`Staged diff exceeds the ${MAX_CONTEXT_BYTES / 1024} KiB context limit; commit manually or split it first`)
@@ -129,6 +129,10 @@ ${context}
   }
 }
 
+export const prepareGac = (cwd: string, signal?: AbortSignal) => prepareCommit(cwd, true, signal)
+
+export const prepareGc = (cwd: string, signal?: AbortSignal) => prepareCommit(cwd, false, signal)
+
 export const validateCommitMessage = (response: string) => {
   const message = response.trim()
   if (!message || /[\r\n\u2028\u2029]/.test(message)) throw new Error("Pi did not return exactly one commit subject line")
@@ -140,7 +144,7 @@ export const validateCommitMessage = (response: string) => {
   return message
 }
 
-export const commitPreparedGac = async (cwd: string, prepared: PreparedGac, message: string, signal?: AbortSignal) => {
+export const commitPrepared = async (cwd: string, prepared: PreparedCommit, message: string, signal?: AbortSignal) => {
   const [currentTree, currentHead, currentRef] = await Promise.all([
     runGit(cwd, ["write-tree"], { signal }),
     runGit(cwd, ["rev-parse", "--verify", "HEAD"], { allowFailure: true, signal }),

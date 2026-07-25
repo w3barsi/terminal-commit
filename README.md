@@ -28,9 +28,9 @@ Typical layout:
 
 The status bar tracks the active repository with live counts for staged, changed, untracked, and unpushed commits.
 
-`Add and Commit` is host-controlled: Terminal Commit runs `git add -A`, collects the complete staged diff and recent commit subjects, and asks Pi only for a commit message with all tools disabled. It validates the message and confirms the staged tree has not changed before running `git commit` itself. Oversized diffs abort rather than producing a message from incomplete context.
+`Add and Commit` and `Commit Only` are host-controlled. Terminal Commit optionally runs `git add -A`, collects the complete staged diff and recent commit subjects, and asks Pi only for a commit message with all tools disabled. It validates the message and confirms the staged tree, branch, and HEAD have not changed before running `git commit` itself. Oversized diffs abort rather than producing a message from incomplete context.
 
-The other AI actions launch Pi while collecting a bounded repository snapshot in parallel. Their first agent prompt includes that snapshot, avoiding an initial tool round trip just to discover repository state.
+`Group Add and Commit` still launches Pi while collecting a bounded repository snapshot in parallel. Its first agent prompt includes that snapshot, avoiding an initial tool round trip just to discover repository state.
 
 ## Running In A Repo
 

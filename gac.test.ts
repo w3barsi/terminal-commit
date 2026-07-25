@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { commitPreparedGac, prepareGac, validateCommitMessage } from "./gac"
+import { commitPrepared, prepareGac, validateCommitMessage } from "./gac"
 
 const temporaryDirectories: string[] = []
 
@@ -55,13 +55,13 @@ describe("prepareGac", () => {
   })
 })
 
-describe("commitPreparedGac", () => {
+describe("commitPrepared", () => {
   test("commits the prepared tree using the supplied message", async () => {
     const directory = await createRepository()
     await writeFile(join(directory, "feature.txt"), "feature\n")
     const prepared = await prepareGac(directory)
 
-    await commitPreparedGac(directory, prepared, "feat(repo): add feature")
+    await commitPrepared(directory, prepared, "feat(repo): add feature")
 
     expect(await git(directory, ["log", "-1", "--format=%s"])).toBe("feat(repo): add feature")
     expect(await git(directory, ["status", "--short"])).toBe("")
@@ -74,7 +74,7 @@ describe("commitPreparedGac", () => {
     await writeFile(join(directory, "feature.txt"), "second\n")
     await git(directory, ["add", "feature.txt"])
 
-    await expect(commitPreparedGac(directory, prepared, "feat(repo): add feature")).rejects.toThrow("Staged changes changed")
+    await expect(commitPrepared(directory, prepared, "feat(repo): add feature")).rejects.toThrow("Staged changes changed")
   })
 
   test("cancels when HEAD changes", async () => {
@@ -86,7 +86,7 @@ describe("commitPreparedGac", () => {
     const prepared = await prepareGac(directory)
     await git(directory, ["commit", "--quiet", "-m", "feat(repo): add second file"])
 
-    await expect(commitPreparedGac(directory, prepared, "feat(repo): add second file")).rejects.toThrow("HEAD or the current branch changed")
+    await expect(commitPrepared(directory, prepared, "feat(repo): add second file")).rejects.toThrow("HEAD or the current branch changed")
   })
 })
 

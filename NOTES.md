@@ -4,7 +4,7 @@
 Does a terminal-native button that spawns pi in RPC mode feel like the right way to trigger a pi extension without opening pi's interactive TUI?
 
 ## What this is
-A standalone terminal app built with OpenTUI + SolidJS. It shows a big clickable button at the top. Clicking it (or pressing Enter) spawns `pi --mode rpc --extension /home/barsi/.pi/agent/extensions/gac.ts`, sends the `/gac` command, and streams the RPC events back into the TUI.
+A standalone terminal app built with OpenTUI + SolidJS. Its commit buttons collect Git context, spawn Pi in RPC mode to generate commit messages, and stream RPC events back into the TUI.
 
 ## How to run
 ```bash
@@ -18,8 +18,9 @@ Requires:
 - Zig installed (OpenTUI compiles its native Zig core on first run)
 
 ## Architecture
-- `index.tsx` — OpenTUI + SolidJS app. Renders a button, handles mouse/keyboard, spawns pi as a child process, loads the GAC extension, sends `/gac`, and renders streamed JSONL/RPC events.
-- `/home/barsi/.pi/agent/extensions/gac.ts` — The pi extension that registers `/gac` and asks the agent to stage all changes and commit them.
+- `index.tsx` — OpenTUI + SolidJS app. Handles input, coordinates Git operations, spawns Pi, and renders streamed JSONL/RPC events.
+- `gac.ts` — Host-controlled GAC/GC pipeline. It snapshots staged changes, builds the model prompt, validates the returned message, checks repository state, and commits.
+- `/home/barsi/.pi/agent/extensions/gacf.ts` — The remaining extension-driven flow for grouping changes into multiple commits.
 
 ## Key findings
 - OpenTUI's `Box` has built-in `onMouseDown`, `onMouseOver`, `onMouseOut` — mouse clicking works natively.
