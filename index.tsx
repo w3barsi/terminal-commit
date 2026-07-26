@@ -30,7 +30,7 @@ const TARGET_REPO = process.env.TERMINAL_COMMIT_REPO ?? process.cwd()
 
 type LogKind = "sent" | "rpc" | "tool" | "stderr" | "exit" | "assistant" | "mouse" | "commit" | "raw"
 type LogLine = { kind: LogKind; text: string }
-type Commit = { id: string; user: string; message: string; date: string }
+type Commit = { id: string; user: string; message: string; date: string; unpushed: boolean }
 
 const LOG_COLORS: Record<LogKind, string> = {
   sent: "#7AA2F7",
@@ -148,26 +148,51 @@ const App = () => {
   }
 
   const refreshCommits = () => {
-    const logProcess = spawn("git", ["log", "-50", "--date=format-local:%d/%m/%Y %H:%M", "--pretty=format:%h%x1f%an%x1f%s%x1f%ad%x1e"], {
+    const logProcess = spawn("git", ["log", "-50", "--date=format-local:%d/%m/%Y %H:%M", "--pretty=format:%H%x1f%h%x1f%an%x1f%s%x1f%ad%x1e"], {
       cwd: TARGET_REPO,
       stdio: ["ignore", "pipe", "ignore"],
     })
-    let output = ""
+    const unpushedProcess = spawn("git", ["rev-list", "@{upstream}..HEAD"], {
+      cwd: TARGET_REPO,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    let logOutput = ""
+    let unpushedOutput = ""
+    let logCode: number | null = null
+    let unpushedCode: number | null = null
 
     logProcess.stdout?.on("data", (data: Buffer) => {
-      output += data.toString()
+      logOutput += data.toString()
     })
 
-    logProcess.on("exit", (code) => {
-      if (code !== 0) {
+    unpushedProcess.stdout?.on("data", (data: Buffer) => {
+      unpushedOutput += data.toString()
+    })
+
+    const finish = () => {
+      if (logCode === null || unpushedCode === null) return
+      if (logCode !== 0) {
         setCommits([])
         return
       }
 
-      setCommits(output.split("\x1e").flatMap((record) => {
-        const [id, user, message, date] = record.trim().split("\x1f")
-        return id && user && message && date ? [{ id, user, message, date }] : []
+      const unpushedIds = new Set(unpushedCode === 0 ? unpushedOutput.trim().split("\n") : [])
+      setCommits(logOutput.split("\x1e").flatMap((record) => {
+        const [hash, id, user, message, date] = record.trim().split("\x1f")
+        return hash && id && user && message && date
+          ? [{ id, user, message, date, unpushed: unpushedIds.has(hash) }]
+          : []
       }))
+    }
+
+    logProcess.on("exit", (code) => {
+      logCode = code ?? -1
+      finish()
+    })
+
+    unpushedProcess.on("exit", (code) => {
+      unpushedCode = code ?? -1
+      finish()
     })
   }
 
@@ -516,7 +541,7 @@ const App = () => {
                 <text fg="#7AA2F7">{commit.id}</text>
                 <text>{"  "}</text>
                 <text fg="#8BD5CA">{commit.user}</text>
-                <text>{`  ${commit.message}`}</text>
+                <text fg={commit.unpushed ? "#FF8A8A" : undefined}>{`  ${commit.message}`}</text>
               </box>
               <text fg="#777">{commit.date}</text>
             </box>
