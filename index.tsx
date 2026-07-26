@@ -30,6 +30,7 @@ const TARGET_REPO = process.env.TERMINAL_COMMIT_REPO ?? process.cwd()
 
 type LogKind = "sent" | "rpc" | "tool" | "stderr" | "exit" | "assistant" | "mouse" | "commit" | "raw"
 type LogLine = { kind: LogKind; text: string }
+type Commit = { id: string; user: string; message: string; date: string }
 
 const LOG_COLORS: Record<LogKind, string> = {
   sent: "#7AA2F7",
@@ -50,6 +51,7 @@ const App = () => {
   const [runningCommand, setRunningCommand] = createSignal<string | null>(null)
   const [logs, setLogs] = createSignal<LogLine[]>([])
   const [gitStatus, setGitStatus] = createSignal({ staged: 0, unstaged: 0, untracked: 0, unpushed: 0 })
+  const [commits, setCommits] = createSignal<Commit[]>([])
 
   const renderer = useRenderer()
   let piProcess: ChildProcess | null = null
@@ -142,6 +144,30 @@ const App = () => {
         const unpushed = aheadCode === 0 ? Number.parseInt(aheadOutput.trim(), 10) || 0 : 0
         setGitStatus({ staged, unstaged, untracked, unpushed })
       })
+    })
+  }
+
+  const refreshCommits = () => {
+    const logProcess = spawn("git", ["log", "-50", "--date=format-local:%d/%m/%Y %H:%M", "--pretty=format:%h%x1f%an%x1f%s%x1f%ad%x1e"], {
+      cwd: TARGET_REPO,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    let output = ""
+
+    logProcess.stdout?.on("data", (data: Buffer) => {
+      output += data.toString()
+    })
+
+    logProcess.on("exit", (code) => {
+      if (code !== 0) {
+        setCommits([])
+        return
+      }
+
+      setCommits(output.split("\x1e").flatMap((record) => {
+        const [id, user, message, date] = record.trim().split("\x1f")
+        return id && user && message && date ? [{ id, user, message, date }] : []
+      }))
     })
   }
 
@@ -307,6 +333,7 @@ const App = () => {
           for (const line of result.stderr.split("\n")) addLog(line)
           setStatus(`Done - ${label} committed staged changes`)
           refreshGitStatus()
+          refreshCommits()
           printLastCommitMessage()
           setRunning(false)
           setRunningCommand(null)
@@ -455,6 +482,7 @@ const App = () => {
           if (event.type === "agent_end") {
             cleanup()
             refreshGitStatus()
+            refreshCommits()
             printLastCommitMessage()
           }
         } catch {
@@ -547,6 +575,7 @@ const App = () => {
 
   onMount(() => {
     refreshGitStatus()
+    refreshCommits()
     const interval = setInterval(refreshGitStatus, 1000)
     onCleanup(() => clearInterval(interval))
   })
@@ -578,7 +607,34 @@ const App = () => {
         )}
       </scrollbox>
 
-      {/* Footer hint */}
+      {/* Commit history */}
+      <scrollbox
+        height={8}
+        border
+        borderStyle="single"
+        paddingLeft={1}
+        paddingRight={1}
+        verticalScrollbarOptions={{
+          showArrows: true,
+          trackOptions: { foregroundColor: "#555", backgroundColor: "#202020" },
+        }}
+      >
+        {commits().length === 0 ? (
+          <text fg="#666">No commits found</text>
+        ) : (
+          commits().map((commit) => (
+            <box flexDirection="row" justifyContent="space-between" width="100%">
+              <box flexDirection="row">
+                <text fg="#7AA2F7">{commit.id}</text>
+                <text>{"  "}</text>
+                <text fg="#8BD5CA">{commit.user}</text>
+                <text>{`  ${commit.message}`}</text>
+              </box>
+              <text fg="#777">{commit.date}</text>
+            </box>
+          ))
+        )}
+      </scrollbox>
 
       <box flexDirection="column" gap={0} width="100%" height={10}>
         <box flexDirection="row" gap={0} width="100%" height={5}>
