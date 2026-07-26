@@ -34,10 +34,23 @@ The status bar tracks the active repository with live counts for staged, changed
 
 ## Running In A Repo
 
-Run the wrapper from the repository you want to commit from:
+Link the package once to install the `gac` command:
 
 ```bash
-/home/barsi/dev/terminal-commit/terminal-commit
+bun link
 ```
 
-The wrapper keeps the app runtime tied to this project while targeting the directory you launched it from for all `git` and `pi` work.
+Run `gac` from the repository you want to commit from to open the TUI. The same workflows are available as headless commands:
+
+```bash
+gac
+gac add
+gac staged
+gac group
+```
+
+- `gac add` stages all changes and creates one commit.
+- `gac staged` commits the currently staged changes.
+- `gac group` uses the external `/gacf` Pi extension to split all changes into coherent commits.
+
+The wrapper keeps the app runtime tied to this project while targeting the directory where `gac` was invoked for all `git` and `pi` work.

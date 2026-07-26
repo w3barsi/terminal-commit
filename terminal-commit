@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+APP_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 export TERMINAL_COMMIT_REPO="${TERMINAL_COMMIT_REPO:-$(pwd)}"
 
 cd "$APP_DIR"
-exec bun --preload @opentui/solid/preload "$APP_DIR/index.tsx"
+if [[ $# -eq 0 || "${1:-}" == "tui" ]]; then
+  exec bun --preload @opentui/solid/preload "$APP_DIR/index.tsx"
+fi
+
+exec bun "$APP_DIR/cli.ts" "$@"
