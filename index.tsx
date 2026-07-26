@@ -455,6 +455,7 @@ const App = () => {
       setStatus(code === 0 ? "Done - git push finished" : `git push failed with code ${code ?? "?"}`)
       addLog(`[exit] git push code ${code ?? "?"}`)
       refreshGitStatus()
+      refreshCommits()
       cleanup()
     })
   }
