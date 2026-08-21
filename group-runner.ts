@@ -1,7 +1,7 @@
 import { spawn } from "child_process"
 import { collectGitContext, formatGitContext } from "./git-context"
+import { MODEL } from "./model"
 
-const MODEL = "openai-codex/gpt-5.4-mini"
 const GROUP_EXTENSION = process.env.GACF_EXTENSION ?? "/home/barsi/.pi/agent/extensions/gacf.ts"
 const GROUP_TIMEOUT_MS = 10 * 60_000
 

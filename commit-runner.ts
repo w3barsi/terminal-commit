@@ -1,7 +1,7 @@
 import { spawn } from "child_process"
 import { commitPrepared, prepareGac, prepareGc, validateCommitMessage } from "./gac"
+import { MODEL } from "./model"
 
-const MODEL = "openai-codex/gpt-5.4-mini"
 const PI_TIMEOUT_MS = 120_000
 
 export type CommitMode = "add" | "staged"

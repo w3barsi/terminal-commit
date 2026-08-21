@@ -13,11 +13,12 @@ import "@opentui/solid/preload"
  */
 
 import { TextAttributes } from "@opentui/core"
-import { render, useKeyboard, useRenderer } from "@opentui/solid"
+import { onFocus, render, useKeyboard, useRenderer } from "@opentui/solid"
 import { createSignal, onCleanup, onMount } from "solid-js"
 import { spawn, type ChildProcess } from "child_process"
 import { collectGitContext, formatGitContext } from "./git-context"
 import { runCommit } from "./commit-runner"
+import { MODEL } from "./model"
 
 const COMMANDS = [
   { name: "gac", label: "Add and Commit", extension: "/home/barsi/.pi/agent/extensions/gac.ts" },
@@ -148,7 +149,7 @@ const App = () => {
   }
 
   const refreshCommits = () => {
-    const logProcess = spawn("git", ["log", "-50", "--date=format-local:%d/%m/%Y %H:%M", "--pretty=format:%H%x1f%h%x1f%an%x1f%s%x1f%ad%x1e"], {
+    const logProcess = spawn("git", ["log", "-50", "--date=format-local:%m/%d/%Y %H:%M", "--pretty=format:%H%x1f%h%x1f%an%x1f%s%x1f%ad%x1e"], {
       cwd: TARGET_REPO,
       stdio: ["ignore", "pipe", "ignore"],
     })
@@ -329,7 +330,7 @@ const App = () => {
       "--no-extensions",
       "--no-session",
       "--model",
-      "openai-codex/gpt-5.4-mini",
+      MODEL,
       "--extension",
       commandConfig.extension,
     ], {
@@ -487,6 +488,8 @@ const App = () => {
     }
   })
 
+  onFocus(refreshCommits)
+
   onMount(() => {
     refreshGitStatus()
     refreshCommits()
@@ -497,7 +500,10 @@ const App = () => {
   return (
     <box flexDirection="column" padding={1} gap={0} width="100%" height="100%">
       {/* Git Status */}
-      <text fg="#AAAAAA">{status()}</text>
+      <box flexDirection="row" justifyContent="space-between" width="100%">
+        <text fg="#AAAAAA">{status()}</text>
+        <text flexShrink={0} fg="#555" attributes={TextAttributes.DIM}>{MODEL}</text>
+      </box>
       {/* Event log */}
       <scrollbox
         flexGrow={1}
@@ -528,6 +534,7 @@ const App = () => {
         borderStyle="single"
         paddingLeft={1}
         paddingRight={1}
+        onMouseDown={refreshCommits}
         verticalScrollbarOptions={{
           showArrows: true,
           trackOptions: { foregroundColor: "#555", backgroundColor: "#202020" },
@@ -537,14 +544,14 @@ const App = () => {
           <text fg="#666">No commits found</text>
         ) : (
           commits().map((commit) => (
-            <box flexDirection="row" justifyContent="space-between" width="100%">
-              <box flexDirection="row">
-                <text fg="#7AA2F7">{commit.id}</text>
-                <text>{"  "}</text>
-                <text fg="#8BD5CA">{commit.user}</text>
-                <text fg={commit.unpushed ? "#FF8A8A" : undefined}>{`  ${commit.message}`}</text>
+            <box flexDirection="row" width="100%">
+              <box flexDirection="row" flexGrow={1} flexShrink={1} overflow="hidden">
+                <text flexShrink={0} fg="#7AA2F7">{commit.id}</text>
+                <text flexShrink={0}>{"  "}</text>
+                <text flexShrink={0} fg="#8BD5CA">{commit.user}</text>
+                <text flexGrow={1} flexShrink={1} wrapMode="none" truncate fg={commit.unpushed ? "#FF8A8A" : undefined}>{`  ${commit.message}`}</text>
               </box>
-              <text fg="#777">{commit.date}</text>
+              <text flexShrink={0} fg="#777">{` ${commit.date}`}</text>
             </box>
           ))
         )}
